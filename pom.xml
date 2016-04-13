@@ -9,11 +9,11 @@
   </parent>
 
   <artifactId>avaje-ignite-config</artifactId>
-  <version>1.1.1</version>
+  <version>1.1.2-SNAPSHOT</version>
 
   <scm>
     <developerConnection>scm:git:https://github.com/avaje-common/avaje-ignite-config.git</developerConnection>
-    <tag>avaje-ignite-config-1.1.1</tag>
+    <tag>HEAD</tag>
   </scm>
   
   <properties>
