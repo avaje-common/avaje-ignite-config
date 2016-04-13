@@ -1,12 +1,10 @@
 package org.avaje.ignite;
 
-import com.amazonaws.auth.BasicAWSCredentials;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.DiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.multicast.TcpDiscoveryMulticastIpFinder;
-import org.apache.ignite.spi.discovery.tcp.ipfinder.s3.TcpDiscoveryS3IpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.spi.swapspace.file.FileSwapSpaceSpi;
 
@@ -50,7 +48,7 @@ public class IgniteConfigBuilder {
     return configuration;
   }
 
-  private void setCommunication() {
+  protected void setCommunication() {
 
     if (!getBool("communication", false)) {
       return;
@@ -139,51 +137,41 @@ public class IgniteConfigBuilder {
     configuration.setCommunicationSpi(communication);
   }
 
-  void setDiscovery() {
+  protected void setDiscovery() {
     DiscoverySpi discovery = buildDiscovery();
     if (discovery != null) {
       configuration.setDiscoverySpi(discovery);
     }
   }
 
-  private DiscoverySpi buildDiscovery() {
+  protected DiscoverySpi buildDiscovery() {
 
-    if (getBool("staticip", false)) {
-      return discoveryStaticIp();
-    }
-    if (getBool("multicast", false)) {
-      return discoveryMulticast();
-    }
-    if (getBool("aws", false)) {
+    if (get("aws.accessKey", null) != null) {
       return discoveryAws();
     }
 
-    return null;
+    if (get("staticip.addresses", null) != null) {
+      return discoveryStaticIp();
+    }
+
+    // default to use multicast
+    return discoveryMulticast();
   }
 
-  private DiscoverySpi discoveryAws() {
+  protected DiscoverySpi discoveryAws() {
 
     String bucket = get("aws.bucketName", "");
     String accessKey = get("aws.accessKey", null);
     String secretKey = get("aws.secretKey", null);
-
-    TcpDiscoveryS3IpFinder s3IpFinder = new TcpDiscoveryS3IpFinder();
-    s3IpFinder.setBucketName(bucket);
-    s3IpFinder.setAwsCredentials(new BasicAWSCredentials(accessKey, secretKey));
-
     String shared = get("aws.shared", "");
-    if (!shared.isEmpty()) {
-      s3IpFinder.setShared(Boolean.parseBoolean(shared));
-    }
-    //s3IpFinder.setClientConfiguration();
 
     TcpDiscoverySpi discovery = buildTcpDiscovery();
-    discovery.setIpFinder(s3IpFinder);
+    discovery.setIpFinder(new AwsDiscoveryBuilder(bucket, accessKey, secretKey, shared).build());
 
     return discovery;
   }
 
-  private DiscoverySpi discoveryMulticast() {
+  protected DiscoverySpi discoveryMulticast() {
 
     TcpDiscoveryMulticastIpFinder multiCast = new TcpDiscoveryMulticastIpFinder();
 
@@ -230,7 +218,7 @@ public class IgniteConfigBuilder {
   /**
    * Return static IP address based discovery.
    */
-  private DiscoverySpi discoveryStaticIp() {
+  protected DiscoverySpi discoveryStaticIp() {
 
     String addresses = get("staticip.addresses", "");
     if (addresses.isEmpty()) {
@@ -245,7 +233,7 @@ public class IgniteConfigBuilder {
     return  discovery;
   }
 
-  private TcpDiscoverySpi buildTcpDiscovery() {
+  protected TcpDiscoverySpi buildTcpDiscovery() {
 
     TcpDiscoverySpi discovery = new TcpDiscoverySpi();
 
@@ -308,13 +296,13 @@ public class IgniteConfigBuilder {
   /**
    * Set FileSwapSpaceSpi if set.
    */
-  void setFileSwap() {
+  protected void setFileSwap() {
     if (getBool("fileSwap", false)) {
       configuration.setSwapSpaceSpi(new FileSwapSpaceSpi());
     }
   }
 
-  Set<String> parseAddresses(String delimitedAddresses) {
+  protected Set<String> parseAddresses(String delimitedAddresses) {
 
     String[] split = delimitedAddresses.split("[,;]");
 
@@ -328,7 +316,7 @@ public class IgniteConfigBuilder {
   /**
    * Return an int property.
    */
-  int getInt(String key, int defaultValue) {
+  protected int getInt(String key, int defaultValue) {
     String val = get(key, Integer.toString(defaultValue));
     return Integer.valueOf(val);
   }
@@ -336,7 +324,7 @@ public class IgniteConfigBuilder {
   /**
    * Return a boolean property.
    */
-  boolean getBool(String key, boolean defaultValue) {
+  protected boolean getBool(String key, boolean defaultValue) {
 
     String val = get(key, Boolean.toString(defaultValue));
     return Boolean.valueOf(val.toLowerCase());
@@ -345,7 +333,7 @@ public class IgniteConfigBuilder {
   /**
    * Return a string property.
    */
-  String get(String key, String defaultValue) {
+  protected String get(String key, String defaultValue) {
 
     String fullKey = prefixKey(key);
     String value = System.getProperty(fullKey);
@@ -361,11 +349,11 @@ public class IgniteConfigBuilder {
     return trim((value != null) ? value : defaultValue);
   }
 
-  private String prefixKey(String key) {
+  protected String prefixKey(String key) {
     return (prefix == null) ? key : prefix + "." + key;
   }
 
-  private String trim(String value) {
-    return value.trim();
+  protected String trim(String value) {
+    return (value == null) ? null : value.trim();
   }
 }
